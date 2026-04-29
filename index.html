@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bem-vindo(a) à Legacy</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root {
+    --primary: #00ffaa;
+    --primary-dark: #00cc88;
+    --primary-light: #88ffdd;
+    --size: 30px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    background: #000;
+    color: #fff;
+    min-height: 100vh;
+    overflow-x: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Three.js canvas background */
+  #hills-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+    pointer-events: none;
+    display: block;
+  }
+
+  .glow {
+    pointer-events: none;
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    height: 100%;
+    border-radius: 9999px;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,0.10), transparent 50%);
+    filter: blur(30px);
+  }
+
+  .container {
+    position: relative;
+    z-index: 2;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+  }
+
+  .card {
+    position: relative;
+    max-width: 720px;
+    width: 100%;
+    text-align: center;
+  }
+
+  h1 {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: clamp(28px, 5vw, 44px);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-bottom: 28px;
+    line-height: 1.15;
+  }
+
+  .subtitle {
+    font-size: 16px;
+    line-height: 1.65;
+    color: rgba(255,255,255,0.85);
+    max-width: 620px;
+    margin: 0 auto 40px;
+  }
+
+  .terms-link {
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.25s ease, text-shadow 0.25s ease;
+  }
+  .terms-link:hover {
+    color: var(--primary-light);
+    text-shadow:
+      0 0 8px var(--primary),
+      0 0 16px rgba(0, 255, 170, 0.5);
+  }
+
+  .checkbox-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    margin-top: 8px;
+  }
+
+  .accept-text {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px;
+    letter-spacing: 0.12em;
+    color: #fff;
+  }
+
+  /* ===== Neon Checkbox ===== */
+  .neon-checkbox {
+    position: relative;
+    display: inline-block;
+    width: var(--size);
+    height: var(--size);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .neon-checkbox input { display: none; }
+
+  .neon-checkbox__frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  .neon-checkbox__box {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    border-radius: 4px;
+    border: 2px solid var(--primary-dark);
+    transition: all 0.4s ease;
+  }
+  .neon-checkbox input:checked + .neon-checkbox__frame .neon-checkbox__box {
+    border-color: var(--primary);
+    background: rgba(0,255,170,0.1);
+  }
+
+  .neon-checkbox__check-container {
+    position: absolute;
+    inset: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .neon-checkbox__check {
+    width: 80%;
+    height: 80%;
+    fill: none;
+    stroke: var(--primary);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 40;
+    stroke-dashoffset: 40;
+    transform-origin: center;
+    transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
+  }
+  .neon-checkbox input:checked + .neon-checkbox__frame .neon-checkbox__check {
+    stroke-dashoffset: 0;
+    transform: scale(1.1);
+  }
+
+  .neon-checkbox__glow {
+    position: absolute;
+    inset: -2px;
+    border-radius: 6px;
+    background: var(--primary);
+    filter: blur(12px);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .neon-checkbox input:checked + .neon-checkbox__frame .neon-checkbox__glow {
+    opacity: 0.2;
+  }
+
+  .neon-checkbox__borders {
+    position: absolute;
+    inset: 0;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .neon-checkbox__borders span {
+    position: absolute;
+    background: var(--primary);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  .neon-checkbox input:checked + .neon-checkbox__frame .neon-checkbox__borders span { opacity: 1; }
+
+  .neon-checkbox__borders span:nth-child(1) { top: 0; left: -100%; width: 40px; height: 1px; animation: borderFlow1 2s linear infinite; }
+  .neon-checkbox__borders span:nth-child(2) { top: -100%; right: 0; width: 1px; height: 40px; animation: borderFlow2 2s linear infinite; }
+  .neon-checkbox__borders span:nth-child(3) { bottom: 0; right: -100%; width: 40px; height: 1px; animation: borderFlow3 2s linear infinite; }
+  .neon-checkbox__borders span:nth-child(4) { bottom: -100%; left: 0; width: 1px; height: 40px; animation: borderFlow4 2s linear infinite; }
+
+  @keyframes borderFlow1 { 0% { transform: translateX(0); } 100% { transform: translateX(200%); } }
+  @keyframes borderFlow2 { 0% { transform: translateY(0); } 100% { transform: translateY(200%); } }
+  @keyframes borderFlow3 { 0% { transform: translateX(0); } 100% { transform: translateX(-200%); } }
+  @keyframes borderFlow4 { 0% { transform: translateY(0); } 100% { transform: translateY(-200%); } }
+
+  /* Particles, rings & sparks effects */
+  .neon-checkbox__particles {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .neon-checkbox__particles span {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: var(--primary);
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    box-shadow: 0 0 6px var(--primary);
+    opacity: 0;
+  }
+  .neon-checkbox input:checked + .neon-checkbox__frame .neon-checkbox__particles span {
+    animation: particleExplosion 0.6s ease-out forwards;
+  }
+  .neon-checkbox__particles span:nth-child(1)  { --x: 25px;  --y: -25px; }
+  .neon-checkbox__particles span:nth-child(2)  { --x: -25px; --y: -25px; }
+  .neon-checkbox__particles span:nth-child(3)  { --x: 25px;  --y: 25px; }
+  .neon-checkbox__particles span:nth-child(4)  { --x: -25px; --y: 25px; }
+  .neon-checkbox__particles span:nth-child(5)  { --x: 35px;  --y: 0; }
+  .neon-checkbox__particles span:nth-child(6)  { --x: -35px; --y: 0; }
+  .neon-checkbox__particles span:nth-child(7)  { --x: 0;     --y: 35px; }
+  .neon-checkbox__particles span:nth-child(8)  { --x: 0;     --y: -35px; }
+  .neon-checkbox__particles span:nth-child(9)  { --x: 20px;  --y: -30px; }
+  .neon-checkbox__particles span:nth-child(10) { --x: -20px; --y: 30px; }
+  .neon-checkbox__particles span:nth-child(11) { --x: 30px;  --y: 20px; }
+  .neon-checkbox__particles span:nth-child(12) { --x: -30px; --y: -20px; }
+
+  @keyframes particleExplosion {
+    0%   { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+    20%  { opacity: 1; }
+    100% {
+      transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(0);
+      opacity: 0;
+    }
+  }
+
+  .neon-checkbox__rings {
+    position: absolute;
+    inset: -20px;
+    pointer-events: none;
+  }
+  .neon-checkbox__rings span {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid var(--primary);
+    transform: scale(0);
+    opacity: 0;
+  }
+  .neon-checkbox input:checked + .neon-checkbox__frame .neon-checkbox__rings span {
+    animation: ringPulse 0.6s ease-out forwards;
+  }
+  .neon-checkbox__rings span:nth-child(2) { animation-delay: 0.1s; }
+  .neon-checkbox__rings span:nth-child(3) { animation-delay: 0.2s; }
+
+  @keyframes ringPulse {
+    0%   { transform: scale(0); opacity: 1; }
+    100% { transform: scale(2); opacity: 0; }
+  }
+
+  .neon-checkbox__sparks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .neon-checkbox__sparks span {
+    position: absolute;
+    width: 20px;
+    height: 1px;
+    background: linear-gradient(to right, var(--primary), transparent);
+    top: 50%;
+    left: 50%;
+    opacity: 0;
+  }
+  .neon-checkbox input:checked + .neon-checkbox__frame .neon-checkbox__sparks span {
+    animation: sparkFlash 0.6s ease-out forwards;
+  }
+  .neon-checkbox__sparks span:nth-child(1) { --r: 0deg; }
+  .neon-checkbox__sparks span:nth-child(2) { --r: 90deg; }
+  .neon-checkbox__sparks span:nth-child(3) { --r: 180deg; }
+  .neon-checkbox__sparks span:nth-child(4) { --r: 270deg; }
+
+  @keyframes sparkFlash {
+    0%   { transform: rotate(var(--r)) translateX(0) scale(1); opacity: 1; }
+    100% { transform: rotate(var(--r)) translateX(30px) scale(0); opacity: 0; }
+  }
+
+  /* ===== Modal de Termos ===== */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 24px;
+    animation: fadeIn 0.2s ease;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: #0a0a0a;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    max-width: 720px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 40px;
+    position: relative;
+    animation: slideUp 0.3s cubic-bezier(0.16,1,0.3,1);
+  }
+
+  .modal h2 {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 22px;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+  .modal h3 {
+    font-size: 15px;
+    margin-top: 28px;
+    margin-bottom: 10px;
+    color: var(--primary-light);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  .modal p {
+    font-size: 13.5px;
+    line-height: 1.7;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 10px;
+    text-align: justify;
+  }
+  .modal p strong { color: rgba(255,255,255,0.95); font-weight: 600; }
+
+  .modal-intro {
+    font-size: 13px !important;
+    color: rgba(255,255,255,0.6) !important;
+    font-style: italic;
+    margin-bottom: 20px !important;
+    text-align: center !important;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 16px;
+  }
+
+  .modal-footer-text {
+    margin-top: 32px !important;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.7) !important;
+    font-style: italic;
+  }
+
+  .modal-signature {
+    margin-top: 20px !important;
+    text-align: center !important;
+    color: rgba(255,255,255,0.7) !important;
+    font-size: 12.5px !important;
+    line-height: 1.8 !important;
+  }
+
+  /* Scrollbar customizada */
+  .modal::-webkit-scrollbar { width: 8px; }
+  .modal::-webkit-scrollbar-track { background: transparent; }
+  .modal::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 170, 0.2);
+    border-radius: 4px;
+  }
+  .modal::-webkit-scrollbar-thumb:hover { background: rgba(0, 255, 170, 0.4); }
+
+  .modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.2s ease;
+  }
+  .modal-close:hover { border-color: var(--primary); color: var(--primary); }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Confirmação após aceite */
+  .confirmation {
+    margin-top: 32px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px;
+    color: var(--primary);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.4s ease;
+  }
+  .confirmation.show { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 480px) {
+    .container {
+      align-items: flex-start;
+      padding-top: 22vh;
+    }
+    h1 { margin-bottom: 22px; }
+    .subtitle { margin-bottom: 32px; }
+    .modal { padding: 28px 20px; }
+    .checkbox-row { gap: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="hills-canvas"></canvas>
+
+<div class="container">
+  <div class="card">
+    <div class="glow"></div>
+    <h1>Seja muito bem-vindo(a) Legacy!</h1>
+
+    <p class="subtitle">
+      Ficamos muito felizes em ter você com a gente. Para darmos início à nossa parceria e podermos te direcionar da melhor forma possível, pedimos que aceite os <a href="#" class="terms-link" id="open-terms">nossos termos de trabalho</a> e nos confirme que está em paz com sua decisão marcando a caixinha abaixo. Sei que parece bobo, mas faz total diferença para nós que saibamos que você está tranquilo e tem certeza da sua decisão. Podemos&nbsp;seguir?
+    </p>
+
+    <div class="checkbox-row">
+      <label class="neon-checkbox">
+        <input type="checkbox" id="accept-checkbox" />
+        <div class="neon-checkbox__frame">
+          <div class="neon-checkbox__box">
+            <div class="neon-checkbox__check-container">
+              <svg viewBox="0 0 24 24" class="neon-checkbox__check">
+                <path d="M3,12.5l7,7L21,5"></path>
+              </svg>
+            </div>
+            <div class="neon-checkbox__glow"></div>
+            <div class="neon-checkbox__borders">
+              <span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+          <div class="neon-checkbox__particles">
+            <span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <div class="neon-checkbox__rings">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="neon-checkbox__sparks">
+            <span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+      </label>
+      <span class="accept-text">SIM, PODEMOS SEGUIR</span>
+    </div>
+
+    <div class="confirmation" id="confirmation">
+      ✓ Aceite registrado. Obrigado pela confiança!
+    </div>
+  </div>
+</div>
+
+<!-- Modal dos Termos -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" id="modal-close" aria-label="Fechar">×</button>
+    <h2>Contrato de Prestação de Serviços — Legacy</h2>
+    <p class="modal-intro">Contrato de Prestação de Serviços Online de Consultoria, Mentoria, Treinamento, Posicionamento Digital, Estruturação Comercial e Ativos Estratégicos.</p>
+
+    <p><strong>LEGACY SALES COMPANY LTDA</strong>, pessoa jurídica de direito privado, inscrita no CNPJ/MF sob o nº 66.228.133/0001-28, com sede na Rua José Vendrametto, nº 62, Casa 04, Cond. Lago Maggiore CD RES, Bairro Xaxim, Curitiba/PR, CEP 81.710-600, doravante denominada simplesmente <strong>CONTRATADA, PRESTADORA ou LEGACY</strong>; e, de outro lado, o <strong>CONTRATANTE</strong> identificado no aceite eletrônico, têm entre si justo e contratado o presente instrumento, regido pelas cláusulas e condições seguintes.</p>
+
+    <h3>Cláusula 1ª — Do Quadro de Contratação</h3>
+    <p>1.1. O presente contrato poderá abranger a contratação isolada de um ou mais módulos, ou a contratação conjunta do ecossistema completo Legacy The Legend.</p>
+    <p>1.2. Os módulos não assinalados não integram o objeto contratado, salvo aditivo contratual escrito e aceito pela LEGACY.</p>
+    <p>1.3. Eventuais observações, condições especiais, serviços adicionais, ajustes de escopo, entregas complementares, prazos específicos ou particularidades da contratação deverão constar expressamente no campo próprio ou em aditivo contratual escrito.</p>
+    <p>1.4. A inclusão de observações ou serviços adicionais somente produzirá efeitos quando estiver expressamente preenchida, assinada ou aceita pela LEGACY, não se presumindo obrigação adicional por mensagens genéricas, tratativas preliminares ou expectativas subjetivas do CONTRATANTE.</p>
+    <p>1.5. Módulos: <strong>Legacy Sovereignty</strong> (posicionamento estratégico — R$ 5.000,00, até 4 calls); <strong>Legacy Dominance</strong> (funil de vendas e oferta — R$ 5.000,00, até 4 calls); <strong>Legacy Conquest</strong> (treinamento comercial — R$ 5.000,00, até 4 calls); <strong>Legacy Vanguard</strong> (estruturação de perfil e ativos digitais — R$ 5.000,00, sem calls obrigatórias); <strong>Projeto Completo Legacy The Legend</strong> (os quatro módulos — R$ 20.000,00, até 12 calls).</p>
+
+    <h3>Cláusula 2ª — Do Objeto</h3>
+    <p>2.1. O presente contrato tem por objeto a prestação, pela LEGACY ao CONTRATANTE, de serviços online de consultoria, mentoria, treinamento, acompanhamento estratégico, posicionamento digital, estruturação comercial, criação de oferta, funil de vendas, copywriting, ativos digitais, roteiro de anúncios, orientação comercial, organização de perfil e demais entregas expressamente previstas neste instrumento.</p>
+    <p>2.2. A contratação será limitada aos módulos assinalados no Quadro de Contratação, sendo certo que cada módulo possui escopo próprio, independente e delimitado.</p>
+    <p>2.3. Os serviços serão prestados de forma online e remota, mediante videoconferências, reuniões virtuais, mensagens, WhatsApp, e-mail, materiais digitais, documentos, orientações estratégicas, arquivos, plataformas, ferramentas de gestão, páginas, roteiros, anúncios, diagnósticos ou outros meios digitais adequados.</p>
+    <p>2.4. O CONTRATANTE declara compreender que não está adquirindo serviço presencial, acompanhamento ilimitado, execução integral de operação comercial, gestão de tráfego, garantia de vendas, garantia de faturamento, garantia de leads ou garantia de resultado econômico.</p>
+
+    <h3>Cláusula 3ª — Da Natureza dos Serviços</h3>
+    <p>3.1. Os serviços prestados pela LEGACY são de natureza intelectual, estratégica, consultiva, personalizada, digital e online.</p>
+    <p>3.2. A obrigação da LEGACY é de meio, e não de resultado.</p>
+    <p>3.3. A LEGACY não promete, não assegura e não garante faturamento, lucro, vendas, retorno sobre investimento, crescimento de audiência, captação mínima de clientes, aprovação de anúncios, viralização, aumento obrigatório de conversão, sucesso comercial, domínio de mercado ou qualquer resultado financeiro específico.</p>
+    <p>3.4. O CONTRATANTE reconhece que os resultados dependem de fatores externos e internos que não estão sob controle da LEGACY, incluindo qualidade do produto/serviço, preço praticado, reputação prévia, nicho, atendimento, verba disponível, equipe comercial, execução das orientações, concorrência, cenário econômico, plataformas digitais, algoritmos, políticas de anúncios e atuação de terceiros.</p>
+    <p>3.5. A ausência de resultado esperado pelo CONTRATANTE não caracteriza inadimplemento contratual, falha de entrega, vício do serviço, propaganda enganosa ou obrigação de reembolso, desde que a LEGACY tenha iniciado, disponibilizado, executado ou colocado à disposição os serviços contratados.</p>
+
+    <h3>Cláusula 4ª — Do Módulo Legacy Sovereignty</h3>
+    <p>4.1. Caso assinalado, compreenderá serviços de acompanhamento de posicionamento estratégico.</p>
+    <p>4.2. Poderá incluir: auditoria de presença digital; análise de posicionamento; refinamento de perfil; definição de público-alvo; orientação de autoridade digital; estruturação de linha editorial; direcionamento estratégico; análise de percepção de mercado; orientação para diferenciação competitiva; até 4 calls estratégicas.</p>
+    <p>4.3. A LEGACY não será obrigada a entregar número específico de postagens, peças, calendários editoriais, artes, legendas ou materiais gráficos neste módulo, salvo previsão expressa.</p>
+
+    <h3>Cláusula 5ª — Do Módulo Legacy Dominance</h3>
+    <p>5.1. Caso assinalado, compreenderá serviços de acompanhamento de funil e criação de oferta.</p>
+    <p>5.2. Poderá incluir: arquitetura de oferta; análise de promessa comercial; estruturação de funil de vendas; orientação de jornada de compra; copywriting estratégico; copy para página de conversão; estrutura de qualificação de leads; orientação para diferenciação da oferta; direcionamento de argumentos comerciais; até 4 calls estratégicas.</p>
+    <p>5.3. A LEGACY não será responsável por configurar ferramentas de automação, e-mail marketing, CRM, pixel, domínio, hospedagem, checkout, gateway, campanhas de mídia paga ou sistemas de terceiros, salvo contratação expressa.</p>
+
+    <h3>Cláusula 6ª — Do Módulo Legacy Conquest</h3>
+    <p>6.1. Caso assinalado, compreenderá serviços de acompanhamento e treinamento comercial.</p>
+    <p>6.2. Poderá incluir: capacitação técnica comercial; estruturação de abordagem de vendas; análise e contorno de objeções; criação ou aperfeiçoamento de processos comerciais; direcionamento para fechamento; orientação sobre postura comercial; análise de gargalos na conversão; padronização de discurso; até 4 calls estratégicas.</p>
+    <p>6.3. A LEGACY não substitui a equipe comercial do CONTRATANTE, não realiza atendimento diário de leads, não fecha vendas em nome do CONTRATANTE e não responde por desempenho individual de vendedores, representantes, colaboradores ou terceiros.</p>
+
+    <h3>Cláusula 7ª — Do Módulo Legacy Vanguard</h3>
+    <p>7.1. Caso assinalado, compreenderá serviços de estruturação de perfil e ativos digitais.</p>
+    <p>7.2. Poderá incluir: orientação para foto de perfil profissional; redação ou otimização de biografia; storytelling estratégico para destaques; até 10 anúncios estáticos; até 10 roteiros ou copys para anúncios em vídeo; até 1 página de produto ou serviço; estruturação textual e estratégica dos ativos digitais.</p>
+    <p>7.3. Execução técnica interna pela equipe da LEGACY, sem obrigatoriedade de calls associadas, salvo previsão expressa.</p>
+    <p>7.4. A criação de página de produto ou serviço não inclui, salvo previsão expressa, hospedagem, domínio, programação avançada, integrações, automações, configuração de checkout, meios de pagamento, disparos de e-mail, CRM, pixel, campanhas de tráfego ou manutenção contínua.</p>
+
+    <h3>Cláusula 8ª — Do Projeto Completo Legacy The Legend</h3>
+    <p>8.1. Caso assinalado, considerar-se-ão contratados os quatro módulos: Sovereignty, Dominance, Conquest e Vanguard.</p>
+    <p>8.2. Valor total de R$ 20.000,00 (vinte mil reais), salvo condição diversa expressamente preenchida.</p>
+    <p>8.3. O projeto poderá compreender até 12 calls estratégicas, além das entregas técnicas previstas no módulo Legacy Vanguard.</p>
+    <p>8.4. A distribuição das calls, a ordem das etapas e a condução metodológica serão definidas pela LEGACY.</p>
+    <p>8.5. A contratação conjunta dos módulos não autoriza exigência de serviços fora do escopo, entregas ilimitadas, reuniões ilimitadas, suporte permanente ou obrigação de resultado.</p>
+
+    <h3>Cláusula 9ª — Do Início da Execução</h3>
+    <p>9.1. A execução terá início com qualquer dos seguintes atos, o que ocorrer primeiro: assinatura física ou eletrônica; pagamento total ou parcial; confirmação escrita por e-mail/WhatsApp; preenchimento de formulário; envio de informações ou briefing; reserva de agenda; onboarding; criação de grupo ou canal de comunicação; envio de materiais; realização de diagnóstico, análise, call ou reunião; mobilização interna da equipe.</p>
+    <p>9.2. A reserva de agenda, planejamento interno, análise inicial, organização do projeto, mobilização de equipe e abertura de canal de atendimento já representam início de execução, em razão da natureza personalizada dos serviços.</p>
+
+    <h3>Cláusula 10ª — Da Execução por Equipe</h3>
+    <p>10.1. A contratação é realizada com a LEGACY enquanto empresa, metodologia, estrutura técnica e organização profissional.</p>
+    <p>10.2. Não há obrigatoriedade de atendimento, mentoria, reunião, análise, entrega ou acompanhamento por fundador, sócio, diretor, líder ou pessoa específica.</p>
+    <p>10.3. A LEGACY poderá designar livremente profissionais, consultores, estrategistas, copywriters, designers, analistas, gestores, especialistas, colaboradores ou parceiros técnicos.</p>
+    <p>10.4. A substituição de profissional designado não caracteriza descumprimento contratual, alteração do objeto, falha de prestação, justificativa de cancelamento ou direito de reembolso.</p>
+
+    <h3>Cláusula 11ª — Das Calls e Reuniões</h3>
+    <p>11.1. As calls serão realizadas online, conforme quantidade prevista para o módulo contratado.</p>
+    <p>11.2. Agendadas conforme disponibilidade da LEGACY, em dias úteis e horário comercial, salvo ajuste escrito em sentido diverso.</p>
+    <p>11.3. O CONTRATANTE deverá comparecer pontualmente às reuniões agendadas.</p>
+    <p>11.4. Pedidos de remarcação deverão ser feitos com antecedência mínima de 48 horas úteis.</p>
+    <p>11.5. A ausência injustificada, atraso superior a 15 minutos, falta de envio prévio de informações ou impossibilidade de realização por culpa do CONTRATANTE poderão acarretar perda da call, sem obrigação de reposição, crédito, abatimento ou reembolso.</p>
+    <p>11.6. A tolerância eventual da LEGACY não importará novação, renúncia de direito ou alteração contratual.</p>
+
+    <h3>Cláusula 12ª — Do Acompanhamento por WhatsApp</h3>
+    <p>12.1. Quando incluído, o acompanhamento será prestado pelo prazo indicado expressamente, se houver.</p>
+    <p>12.2. Sem prazo específico, o acompanhamento será de até 3 meses, contados do início da execução.</p>
+    <p>12.3. WhatsApp será canal de suporte estratégico complementar, em dias úteis e horário comercial.</p>
+    <p>12.4. Não constitui canal emergencial, instantâneo, ilimitado, permanente ou disponível 24 horas.</p>
+    <p>12.5. Respostas em prazo razoável, conforme ordem de atendimento, complexidade e disponibilidade.</p>
+    <p>12.6. Não inclui execução ilimitada de tarefas, revisão irrestrita, plantão permanente, consultoria diária sem limitação, suporte técnico de terceiros ou acompanhamento posterior ao prazo contratado.</p>
+
+    <h3>Cláusula 13ª — Das Obrigações da Legacy</h3>
+    <p>13.1. Constituem obrigações da LEGACY: executar os serviços dos módulos contratados; disponibilizar equipe qualificada; conduzir as calls previstas; orientar conforme metodologia própria; desenvolver as entregas digitais contratadas; manter comunicação profissional; zelar pela confidencialidade; registrar reuniões/aprovações/entregas; observar a legislação aplicável.</p>
+    <p>13.2. A LEGACY não será responsável por falhas, atrasos ou resultados negativos decorrentes de omissão do CONTRATANTE, atraso no envio de informações, ausência em reuniões, não aprovação de materiais, mudança de briefing, não implementação de orientações ou atuação de terceiros.</p>
+
+    <h3>Cláusula 14ª — Das Obrigações do Contratante</h3>
+    <p>14.1. Constituem obrigações do CONTRATANTE: pagar pontualmente os valores; fornecer informações completas, verdadeiras e atualizadas; enviar briefing, documentos, imagens, acessos, dados, históricos e materiais; participar das reuniões agendadas; responder às solicitações em prazo razoável; aprovar ou solicitar ajustes nos prazos; implementar as orientações por sua conta e risco; manter comportamento respeitoso; não compartilhar, revender, copiar ou explorar indevidamente materiais; informar previamente limitações que possam impactar o projeto.</p>
+    <p>14.2. A falta de colaboração suspenderá automaticamente os prazos da LEGACY, sem caracterizar inadimplemento, atraso ou direito de cancelamento.</p>
+
+    <h3>Cláusula 15ª — Das Aprovações</h3>
+    <p>15.1. Materiais enviados deverão ser analisados pelo CONTRATANTE no prazo de 5 dias úteis, salvo prazo diverso indicado por escrito.</p>
+    <p>15.2. A ausência de manifestação no prazo será considerada aprovação tácita.</p>
+    <p>15.3. A aprovação tácita ou expressa autoriza a LEGACY a prosseguir, sem que o CONTRATANTE possa posteriormente alegar ausência de validação, salvo erro material relevante e comprovado.</p>
+
+    <h3>Cláusula 16ª — Dos Prazos</h3>
+    <p>16.1. Os prazos de execução serão estimados, salvo previsão expressa de prazo fatal.</p>
+    <p>16.2. Os prazos dependem da colaboração do CONTRATANTE, envio de informações, aprovações, agenda, funcionamento de plataformas digitais, acessos e complexidade técnica.</p>
+    <p>16.3. Atrasos imputáveis ao CONTRATANTE ou a terceiros prorrogarão automaticamente os prazos da LEGACY.</p>
+    <p>16.4. A LEGACY não responderá por atrasos decorrentes de instabilidade de internet, bloqueio de contas, falhas de plataformas, ausência de acesso, indisponibilidade de ferramentas externas, atraso de terceiros ou mudança de escopo.</p>
+
+    <h3>Cláusula 17ª — Do Preço e Pagamento</h3>
+    <p>17.1. O CONTRATANTE pagará à LEGACY o valor total indicado no Quadro de Contratação.</p>
+    <p>17.2. Valor individual de cada módulo: R$ 5.000,00.</p>
+    <p>17.3. Valor do projeto completo Legacy The Legend: R$ 20.000,00.</p>
+    <p>17.4. Pagamento por PIX, boleto, cartão de crédito, transferência, link de pagamento, checkout, invoice ou outro meio aceito pela LEGACY.</p>
+    <p>17.5. O parcelamento é mera facilidade de pagamento e não representa divisão autônoma da execução, nem autoriza cancelamento proporcional imotivado.</p>
+    <p>17.6. O inadimplemento de qualquer parcela autoriza a LEGACY a suspender imediatamente os serviços, bloquear acessos, interromper atendimentos, cancelar reuniões futuras e exigir o vencimento antecipado das parcelas vincendas.</p>
+
+    <h3>Cláusula 18ª — Da Inadimplência</h3>
+    <p>18.1. O atraso sujeitará o CONTRATANTE, independentemente de notificação, a: multa moratória de 10% sobre o valor em atraso; juros de mora de 1% ao mês, pro rata die; correção monetária pelo IPCA; honorários advocatícios extrajudiciais de 20%; reembolso de taxas, tarifas, despesas administrativas, custas e custos de cobrança.</p>
+    <p>18.2. A LEGACY poderá promover cobrança extrajudicial ou judicial, protesto, negativação e demais medidas cabíveis.</p>
+
+    <h3>Cláusula 19ª — Do Chargeback e Contestação de Pagamento</h3>
+    <p>19.1. O CONTRATANTE não poderá realizar chargeback, contestação de cartão, sustação, bloqueio de pagamento ou medida equivalente sem prévia comunicação formal e tentativa de solução administrativa.</p>
+    <p>19.2. Havendo contratação, assinatura, aceite eletrônico, pagamento, reserva de agenda, onboarding, início de execução, envio de material, análise, call, diagnóstico ou disponibilização de entrega, a contestação unilateral será considerada descumprimento contratual.</p>
+    <p>19.3. Em caso de chargeback indevido, a LEGACY poderá exigir: pagamento integral do saldo; vencimento antecipado das parcelas; multa contratual de 20% sobre o valor contestado; reembolso de tarifas bancárias e custos administrativos; honorários advocatícios; indenização por perdas e danos.</p>
+
+    <h3>Cláusula 20ª — Do Cancelamento pelo Contratante</h3>
+    <p>20.1. O pedido deverá ser feito por escrito.</p>
+    <p>20.2. Por se tratar de serviço intelectual, estratégico, personalizado, digital e de execução imediata, não haverá reembolso integral após o início da execução.</p>
+    <p>20.3. Em caso de cancelamento após o início, a LEGACY poderá reter valores correspondentes a: reserva de agenda; onboarding; planejamento interno; diagnóstico; reuniões realizadas ou disponibilizadas; materiais produzidos; análises estratégicas; entregas parciais; mobilização de equipe; custos operacionais; tempo técnico e intelectual empregado.</p>
+    <p>20.4. A desistência imotivada sujeitará o CONTRATANTE ao pagamento de multa compensatória de 30% sobre o saldo contratual vincendo.</p>
+    <p>20.5. Se a contratação tiver ocorrido em pacote, projeto completo ou condição especial, o cancelamento antecipado acarretará a perda do benefício econômico concedido, recalculando-se os módulos pelo valor individual.</p>
+
+    <h3>Cláusula 21ª — Do Direito de Arrependimento, Quando Aplicável</h3>
+    <p>21.1. Caso o CONTRATANTE seja consumidor pessoa física e a contratação tenha ocorrido fora do estabelecimento comercial, será observado o direito de arrependimento previsto no art. 49 do CDC.</p>
+    <p>21.2. O CONTRATANTE reconhece, entretanto, que os serviços possuem natureza personalizada, intelectual e de início imediato.</p>
+    <p>21.3. Caso autorize o início antes do término do prazo legal, poderão ser retidos valores proporcionais e razoáveis correspondentes aos serviços já prestados.</p>
+    <p>21.4. Em contratações por pessoa jurídica, empresário, profissional liberal, sociedade, agência, infoprodutor ou prestador de serviço, as partes reconhecem a natureza empresarial da contratação, não se aplicando automaticamente o regime de arrependimento próprio das relações de consumo.</p>
+
+    <h3>Cláusula 22ª — Das Hipóteses Sem Reembolso</h3>
+    <p>22.1. Não haverá reembolso, abatimento, compensação ou crédito em razão de: ausência em reunião; atraso no envio de informações; não implementação das orientações; mudança de ideia, nicho, produto, equipe ou posicionamento; insatisfação subjetiva sem descumprimento objetivo; ausência de resultado financeiro; falta de verba para mídia, ferramentas ou equipe; dificuldades internas; reprovação de anúncios por plataformas; bloqueio ou queda de redes sociais; falhas de terceiros; desistência após início da execução; uso parcial dos serviços por escolha do CONTRATANTE.</p>
+
+    <h3>Cláusula 23ª — Da Suspensão dos Serviços</h3>
+    <p>23.1. A LEGACY poderá suspender os serviços, sem caracterizar inadimplemento, em casos de: inadimplência; chargeback; ausência de colaboração; não envio de informações essenciais; violação de propriedade intelectual; quebra de confidencialidade; conduta abusiva, ofensiva ou desrespeitosa; uso indevido dos materiais; exposição indevida da LEGACY; prática de ato ilícito ou antiético.</p>
+    <p>23.2. A suspensão não afasta a obrigação de pagamento dos valores vencidos ou vincendos.</p>
+
+    <h3>Cláusula 24ª — Da Rescisão pela Legacy</h3>
+    <p>24.1. A LEGACY poderá rescindir o contrato quando o CONTRATANTE: atrasar pagamentos; realizar chargeback indevido; descumprir obrigações; violar confidencialidade; copiar ou compartilhar materiais; tentar aliciar membros da equipe; agir com abuso, ofensa, ameaça ou assédio; utilizar os serviços para finalidade ilícita; prejudicar a imagem ou operação da LEGACY; inviabilizar a execução por falta de colaboração.</p>
+    <p>24.2. A rescisão por culpa do CONTRATANTE não gerará direito a reembolso e não afastará a cobrança dos valores devidos, multas e indenizações cabíveis.</p>
+
+    <h3>Cláusula 25ª — Da Propriedade Intelectual</h3>
+    <p>25.1. Pertencem exclusivamente à LEGACY sua metodologia, know-how, frameworks, estruturas, modelos, documentos, aulas, gravações, raciocínios estratégicos, sistemas internos, processos, checklists, diagnósticos, materiais, estratégias, técnicas, métodos, fluxos, scripts-base, templates e demais elementos intelectuais.</p>
+    <p>25.2. O CONTRATANTE recebe apenas licença limitada, pessoal, não exclusiva, intransferível e restrita ao uso interno dos materiais entregues.</p>
+    <p>25.3. É vedado: copiar a metodologia; revender materiais; compartilhar documentos; disponibilizar materiais em grupos, cursos ou comunidades; adaptar para exploração comercial própria; treinar concorrentes; reproduzir, gravar, distribuir ou publicar conteúdos sem autorização; remover marcas ou créditos.</p>
+    <p>25.4. A violação sujeitará o CONTRATANTE ao pagamento de multa não compensatória equivalente a 3 vezes o valor total do contrato, sem prejuízo de perdas e danos.</p>
+
+    <h3>Cláusula 26ª — Do Uso das Entregas Digitais</h3>
+    <p>26.1. As peças, copys, roteiros, páginas, anúncios e materiais produzidos especificamente para o CONTRATANTE poderão ser utilizados em seu próprio negócio.</p>
+    <p>26.2. O direito de uso não implica cessão da metodologia, transferência de propriedade intelectual ou autorização para exploração comercial dos materiais como produto, curso, mentoria, consultoria ou serviço concorrente.</p>
+
+    <h3>Cláusula 27ª — Da Confidencialidade</h3>
+    <p>27.1. O CONTRATANTE obriga-se a manter sigilo sobre todas as informações, estratégias, documentos, diagnósticos, métodos, materiais, preços, bastidores, orientações, conteúdos, reuniões, mensagens e conhecimentos recebidos.</p>
+    <p>27.2. A obrigação permanecerá válida por prazo indeterminado, mesmo após o término do contrato.</p>
+    <p>27.3. A divulgação indevida sujeitará o CONTRATANTE ao pagamento de multa equivalente a 3 vezes o valor total do contrato, sem prejuízo de indenização suplementar.</p>
+
+    <h3>Cláusula 28ª — Do Uso de Imagem, Portfólio e Cases</h3>
+    <p>28.1. Salvo manifestação expressa em contrário, o CONTRATANTE autoriza a LEGACY a mencionar seu nome, marca, segmento, depoimentos, resultados, prints, antes e depois e materiais produzidos em portfólio, apresentações, redes sociais, treinamentos e materiais institucionais.</p>
+    <p>28.2. A LEGACY compromete-se a não divulgar informações sensíveis, estratégicas ou sigilosas que possam prejudicar o CONTRATANTE.</p>
+
+    <h3>Cláusula 29ª — Da Proteção de Dados</h3>
+    <p>29.1. As partes obrigam-se a cumprir a LGPD (Lei nº 13.709/2018), no que for aplicável.</p>
+    <p>29.2. A LEGACY poderá tratar dados pessoais do CONTRATANTE, representantes, colaboradores, clientes ou leads para fins de execução contratual, comunicação, suporte, cobrança, emissão fiscal, agenda, comprovação de entrega, cumprimento legal e exercício regular de direitos.</p>
+    <p>29.3. O CONTRATANTE declara possuir autorização ou base legal para compartilhar dados pessoais de terceiros necessários à execução.</p>
+    <p>29.4. A LEGACY não será responsável por dados enviados sem base legal adequada.</p>
+
+    <h3>Cláusula 30ª — Da Documentação das Entregas</h3>
+    <p>30.1. A LEGACY poderá registrar reuniões, mensagens, aprovações, tarefas, documentos, arquivos, prints, protocolos, checklists, gravações, relatórios, logs e interações.</p>
+    <p>30.2. Tais registros poderão ser utilizados como prova da contratação, execução, entrega, aprovação, suporte, inadimplência, descumprimento ou encerramento.</p>
+    <p>30.3. As calls poderão ser gravadas para fins de registro, qualidade, treinamento interno, continuidade metodológica e comprovação de entrega.</p>
+
+    <h3>Cláusula 31ª — Da Limitação de Responsabilidade</h3>
+    <p>31.1. Eventual responsabilidade da LEGACY, se comprovada, ficará limitada ao valor efetivamente pago pelo módulo específico diretamente relacionado ao fato.</p>
+    <p>31.2. A LEGACY não responderá por: lucros cessantes; perda de faturamento; perda de oportunidade; perda de clientela; dano reputacional indireto; expectativa comercial frustrada; investimentos em mídia paga; custos com equipe; custos com ferramentas, plataformas ou terceiros; danos indiretos, reflexos, consequenciais ou punitivos.</p>
+    <p>31.3. A limitação não se aplicará em caso de dolo comprovado por decisão final.</p>
+
+    <h3>Cláusula 32ª — Da Responsabilidade por Terceiros e Plataformas</h3>
+    <p>32.1. A LEGACY não se responsabiliza por atos, omissões, políticas, instabilidades, bloqueios, reprovações, indisponibilidades, mudanças de algoritmo ou falhas de terceiros, incluindo Meta, Instagram, Facebook, Google, YouTube, TikTok, WhatsApp, plataformas de pagamento, bancos, gateways, hospedagens, CRMs, ferramentas de automação, provedores de internet, designers, gestores de tráfego, vendedores, agências ou consultores externos.</p>
+    <p>32.2. A contratação, pagamento e manutenção de ferramentas de terceiros serão de responsabilidade exclusiva do CONTRATANTE.</p>
+
+    <h3>Cláusula 33ª — Da Conduta das Partes</h3>
+    <p>33.1. As partes deverão agir com boa-fé, cooperação, respeito, urbanidade e transparência.</p>
+    <p>33.2. O CONTRATANTE não poderá praticar condutas abusivas, ofensivas, ameaçadoras, discriminatórias, humilhantes, assediadoras, agressivas ou incompatíveis com a relação profissional.</p>
+    <p>33.3. A violação autoriza a LEGACY a suspender ou rescindir o contrato, sem prejuízo da cobrança e indenização cabível.</p>
+
+    <h3>Cláusula 34ª — Do Não Aliciamento</h3>
+    <p>34.1. Durante a vigência e pelo prazo de 24 meses após o encerramento, o CONTRATANTE não poderá contratar, aliciar, abordar comercialmente ou firmar relação direta com colaboradores, consultores, parceiros, prestadores, especialistas ou membros da equipe da LEGACY que tenham atuado no projeto.</p>
+    <p>34.2. A violação sujeitará o CONTRATANTE ao pagamento de multa equivalente a 3 vezes o valor total do contrato, sem prejuízo de perdas e danos.</p>
+
+    <h3>Cláusula 35ª — Da Ausência de Vínculo</h3>
+    <p>35.1. Este contrato não cria sociedade, associação, franquia, representação comercial, mandato, joint venture, vínculo empregatício, exclusividade, subordinação, agência ou relação de consumo quando a contratação possuir natureza empresarial, profissional ou B2B.</p>
+    <p>35.2. A LEGACY atuará com autonomia técnica, operacional e metodológica.</p>
+
+    <h3>Cláusula 36ª — Do Caso Fortuito e Força Maior</h3>
+    <p>36.1. Nenhuma das partes será responsabilizada por descumprimento decorrente de caso fortuito ou força maior, incluindo falhas de internet, quedas de energia, indisponibilidade de plataformas, ataques cibernéticos, doença, acidente, atos governamentais, desastres, greves, instabilidade sistêmica ou eventos fora do controle razoável das partes.</p>
+
+    <h3>Cláusula 37ª — Das Comunicações e Assinatura Eletrônica</h3>
+    <p>37.1. Serão válidas as comunicações por e-mail, WhatsApp, plataforma digital, formulário, assinatura eletrônica, checkout, link de pagamento, mensagem escrita ou outro meio usual.</p>
+    <p>37.2. O aceite eletrônico, pagamento, confirmação por mensagem, preenchimento de formulário, assinatura digital ou início de uso dos serviços constituem manifestação válida de vontade.</p>
+    <p>37.3. O CONTRATANTE reconhece a validade jurídica das comunicações, documentos, registros, prints, logs, mensagens e aceites eletrônicos.</p>
+
+    <h3>Cláusula 38ª — Da Solução Amigável</h3>
+    <p>38.1. Antes de ajuizar demanda, promover exposição pública, realizar reclamação reputacional, chargeback ou medida equivalente, o CONTRATANTE compromete-se a comunicar formalmente a LEGACY, descrevendo a reclamação e concedendo prazo razoável para tentativa de solução amigável.</p>
+    <p>38.2. Esta cláusula não impede o acesso ao Poder Judiciário, mas estabelece dever contratual de boa-fé e tentativa prévia de composição.</p>
+
+    <h3>Cláusula 39ª — Das Declarações Expressas do Contratante</h3>
+    <p>39.1. O CONTRATANTE declara expressamente que: leu integralmente o contrato; compreendeu o escopo; sabe que os serviços são prestados online; sabe que são intelectuais, estratégicos, personalizados e de meio; sabe que a LEGACY não garante faturamento, vendas, leads, lucro, retorno financeiro ou resultado específico; sabe que a execução depende de sua colaboração ativa; compromete-se a enviar informações, documentos, briefings e aprovações nos prazos; autoriza o início imediato dos serviços após assinatura, pagamento, onboarding, reserva de agenda ou qualquer ato de execução; compreende que após o início não haverá reembolso integral; reconhece os limites do direito de arrependimento; reconhece que o parcelamento é mera facilidade de pagamento; reconhece que ausência de implementação não gera dever de reembolso; reconhece que insatisfação subjetiva ou ausência de resultado financeiro não caracteriza inadimplemento; reconhece que a LEGACY poderá designar qualquer profissional qualificado; reconhece que não há obrigatoriedade de atendimento por fundador, sócio ou diretor; reconhece que WhatsApp não é canal emergencial; reconhece que faltas, atrasos ou remarcações fora do prazo poderão acarretar perda de calls; compromete-se a não realizar chargeback sem solução prévia; compromete-se a manter confidencialidade; compromete-se a não copiar, revender, compartilhar ou explorar comercialmente a metodologia.</p>
+
+    <h3>Cláusula 40ª — Das Disposições Gerais</h3>
+    <p>40.1. Este contrato constitui o instrumento integral entre as partes, substituindo entendimentos verbais, mensagens preliminares, apresentações, materiais publicitários ou tratativas anteriores.</p>
+    <p>40.2. Qualquer alteração de escopo, preço, prazo, módulo, entrega ou obrigação dependerá de aditivo escrito ou aceite eletrônico inequívoco da LEGACY.</p>
+    <p>40.3. A tolerância de uma parte quanto ao descumprimento da outra não importará renúncia, novação ou alteração contratual.</p>
+    <p>40.4. Se qualquer cláusula for considerada inválida ou inexigível, as demais permanecerão plenamente válidas.</p>
+    <p>40.5. O CONTRATANTE declara que leu, compreendeu e aceitou todas as condições deste instrumento antes da contratação.</p>
+
+    <h3>Cláusula 41ª — Do Foro</h3>
+    <p>41.1. As partes elegem o foro da comarca de Brasília/DF para dirimir controvérsias decorrentes deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja.</p>
+    <p>41.2. Na hipótese de relação de consumo reconhecida por autoridade competente, será respeitado eventual foro legal obrigatório em favor do consumidor.</p>
+
+    <p class="modal-footer-text">E, por estarem justas e contratadas, as partes assinam o presente instrumento, física ou eletronicamente, para que produza seus jurídicos e legais efeitos.</p>
+    <p class="modal-signature"><strong>LEGACY SALES COMPANY LTDA</strong><br>CNPJ nº 66.228.133/0001-28<br>CONTRATADA</p>
+  </div>
+</div>
+
+<script>
+// ===== Modal de Termos =====
+const overlay = document.getElementById('modal-overlay');
+document.getElementById('open-terms').addEventListener('click', (e) => {
+  e.preventDefault();
+  overlay.classList.add('open');
+});
+document.getElementById('modal-close').addEventListener('click', () => {
+  overlay.classList.remove('open');
+});
+overlay.addEventListener('click', (e) => {
+  if (e.target === overlay) overlay.classList.remove('open');
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') overlay.classList.remove('open');
+});
+
+// ===== Checkbox aceite =====
+const checkbox = document.getElementById('accept-checkbox');
+const confirmation = document.getElementById('confirmation');
+checkbox.addEventListener('change', () => {
+  if (checkbox.checked) {
+    confirmation.classList.add('show');
+  } else {
+    confirmation.classList.remove('show');
+  }
+});
+
+// ===== GLSL Hills (Three.js) =====
+(function () {
+  const PLANE_SIZE = 256;
+  const CAMERA_Z  = 125;
+  const SPEED     = 0.5;
+
+  const canvas   = document.getElementById('hills-canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true });
+  const scene    = new THREE.Scene();
+  const camera   = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
+  const clock    = new THREE.Clock();
+
+  const vertexShader = `
+    #define GLSLIFY 1
+    attribute vec3 position;
+    uniform mat4 projectionMatrix;
+    uniform mat4 modelViewMatrix;
+    uniform float time;
+    varying vec3 vPosition;
+
+    mat4 rotateMatrixX(float radian) {
+      return mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, cos(radian), -sin(radian), 0.0,
+        0.0, sin(radian), cos(radian), 0.0,
+        0.0, 0.0, 0.0, 1.0
+      );
+    }
+
+    vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+    vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+    vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+    vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+    vec3 fade(vec3 t) { return t*t*t*(t*(t*6.0-15.0)+10.0); }
+
+    float cnoise(vec3 P) {
+      vec3 Pi0 = floor(P);
+      vec3 Pi1 = Pi0 + vec3(1.0);
+      Pi0 = mod289(Pi0);
+      Pi1 = mod289(Pi1);
+      vec3 Pf0 = fract(P);
+      vec3 Pf1 = Pf0 - vec3(1.0);
+      vec4 ix = vec4(Pi0.x, Pi1.x, Pi0.x, Pi1.x);
+      vec4 iy = vec4(Pi0.yy, Pi1.yy);
+      vec4 iz0 = Pi0.zzzz;
+      vec4 iz1 = Pi1.zzzz;
+
+      vec4 ixy = permute(permute(ix) + iy);
+      vec4 ixy0 = permute(ixy + iz0);
+      vec4 ixy1 = permute(ixy + iz1);
+
+      vec4 gx0 = ixy0 * (1.0 / 7.0);
+      vec4 gy0 = fract(floor(gx0) * (1.0 / 7.0)) - 0.5;
+      gx0 = fract(gx0);
+      vec4 gz0 = vec4(0.5) - abs(gx0) - abs(gy0);
+      vec4 sz0 = step(gz0, vec4(0.0));
+      gx0 -= sz0 * (step(0.0, gx0) - 0.5);
+      gy0 -= sz0 * (step(0.0, gy0) - 0.5);
+
+      vec4 gx1 = ixy1 * (1.0 / 7.0);
+      vec4 gy1 = fract(floor(gx1) * (1.0 / 7.0)) - 0.5;
+      gx1 = fract(gx1);
+      vec4 gz1 = vec4(0.5) - abs(gx1) - abs(gy1);
+      vec4 sz1 = step(gz1, vec4(0.0));
+      gx1 -= sz1 * (step(0.0, gx1) - 0.5);
+      gy1 -= sz1 * (step(0.0, gy1) - 0.5);
+
+      vec3 g000 = vec3(gx0.x,gy0.x,gz0.x);
+      vec3 g100 = vec3(gx0.y,gy0.y,gz0.y);
+      vec3 g010 = vec3(gx0.z,gy0.z,gz0.z);
+      vec3 g110 = vec3(gx0.w,gy0.w,gz0.w);
+      vec3 g001 = vec3(gx1.x,gy1.x,gz1.x);
+      vec3 g101 = vec3(gx1.y,gy1.y,gz1.y);
+      vec3 g011 = vec3(gx1.z,gy1.z,gz1.z);
+      vec3 g111 = vec3(gx1.w,gy1.w,gz1.w);
+
+      vec4 norm0 = taylorInvSqrt(vec4(dot(g000,g000), dot(g010,g010), dot(g100,g100), dot(g110,g110)));
+      g000 *= norm0.x; g010 *= norm0.y; g100 *= norm0.z; g110 *= norm0.w;
+      vec4 norm1 = taylorInvSqrt(vec4(dot(g001,g001), dot(g011,g011), dot(g101,g101), dot(g111,g111)));
+      g001 *= norm1.x; g011 *= norm1.y; g101 *= norm1.z; g111 *= norm1.w;
+
+      float n000 = dot(g000, Pf0);
+      float n100 = dot(g100, vec3(Pf1.x, Pf0.yz));
+      float n010 = dot(g010, vec3(Pf0.x, Pf1.y, Pf0.z));
+      float n110 = dot(g110, vec3(Pf1.xy, Pf0.z));
+      float n001 = dot(g001, vec3(Pf0.xy, Pf1.z));
+      float n101 = dot(g101, vec3(Pf1.x, Pf0.y, Pf1.z));
+      float n011 = dot(g011, vec3(Pf0.x, Pf1.yz));
+      float n111 = dot(g111, Pf1);
+
+      vec3 fade_xyz = fade(Pf0);
+      vec4 n_z = mix(vec4(n000, n100, n010, n110), vec4(n001, n101, n011, n111), fade_xyz.z);
+      vec2 n_yz = mix(n_z.xy, n_z.zw, fade_xyz.y);
+      float n_xyz = mix(n_yz.x, n_yz.y, fade_xyz.x);
+      return 2.2 * n_xyz;
+    }
+
+    void main(void) {
+      vec3 updatePosition = (rotateMatrixX(radians(90.0)) * vec4(position, 1.0)).xyz;
+      float sin1 = sin(radians(updatePosition.x / 128.0 * 90.0));
+      vec3 noisePosition = updatePosition + vec3(0.0, 0.0, time * -30.0);
+      float noise1 = cnoise(noisePosition * 0.08);
+      float noise2 = cnoise(noisePosition * 0.06);
+      float noise3 = cnoise(noisePosition * 0.4);
+      vec3 lastPosition = updatePosition + vec3(0.0,
+        noise1 * sin1 * 8.0
+        + noise2 * sin1 * 8.0
+        + noise3 * (abs(sin1) * 2.0 + 0.5)
+        + pow(sin1, 2.0) * 40.0, 0.0);
+
+      vPosition = lastPosition;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(lastPosition, 1.0);
+    }
+  `;
+
+  const fragmentShader = `
+    precision highp float;
+    #define GLSLIFY 1
+    varying vec3 vPosition;
+
+    void main(void) {
+      float opacity = (96.0 - length(vPosition)) / 256.0 * 0.6;
+      vec3 color = vec3(0.6);
+      gl_FragColor = vec4(color, opacity);
+    }
+  `;
+
+  const uniforms = { time: { type: 'f', value: 0 } };
+  const planeMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE, PLANE_SIZE, PLANE_SIZE),
+    new THREE.RawShaderMaterial({
+      uniforms,
+      vertexShader,
+      fragmentShader,
+      transparent: true,
+    })
+  );
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  function renderLoop() {
+    uniforms.time.value += clock.getDelta() * SPEED;
+    renderer.render(scene, camera);
+    requestAnimationFrame(renderLoop);
+  }
+
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x000000, 0);
+  camera.position.set(0, 16, CAMERA_Z);
+  camera.lookAt(new THREE.Vector3(0, 28, 0));
+  scene.add(planeMesh);
+  window.addEventListener('resize', resize);
+  resize();
+  renderLoop();
+})();
+</script>
+</body>
+</html>
