@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Bem-vindo(a) à Legacy</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --primary: #00ffaa;
@@ -415,6 +416,184 @@
   }
   .confirmation.show { opacity: 1; transform: translateY(0); }
 
+  /* ===== Identity Confirmation Modal (1º popup, ao abrir página) ===== */
+  .identity-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    padding: 24px;
+    transition: opacity 0.4s ease, visibility 0.4s;
+  }
+  .identity-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .identity-card {
+    max-width: 520px;
+    width: 100%;
+    text-align: center;
+    background: #0a0a0a;
+    border: 1px solid rgba(0, 255, 170, 0.15);
+    border-radius: 14px;
+    padding: 48px 36px;
+    box-shadow: 0 0 60px rgba(0, 255, 170, 0.08);
+  }
+  .identity-eyebrow {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--primary);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .identity-card h2 {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: clamp(20px, 3.5vw, 24px);
+    color: #fff;
+    margin-bottom: 32px;
+    line-height: 1.45;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+  }
+  .identity-subtitle {
+    font-size: 14px;
+    color: rgba(255,255,255,0.65);
+    line-height: 1.6;
+    margin-bottom: 36px;
+  }
+  .identity-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn-yes, .btn-no {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    padding: 14px 26px;
+    border-radius: 8px;
+    cursor: pointer;
+    background: transparent;
+    transition: all 0.25s ease;
+    font-weight: 600;
+  }
+  .btn-yes {
+    color: var(--primary);
+    border: 1px solid var(--primary-dark);
+  }
+  .btn-yes:hover {
+    background: rgba(0, 255, 170, 0.1);
+    border-color: var(--primary);
+    box-shadow: 0 0 16px rgba(0, 255, 170, 0.25);
+  }
+  .btn-no {
+    color: rgba(255,255,255,0.7);
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .btn-no:hover {
+    border-color: rgba(255,255,255,0.5);
+    color: #fff;
+  }
+
+  /* ===== Thank You Modal (2º popup, após aceite) ===== */
+  .thanks-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 150;
+    padding: 24px;
+    animation: fadeIn 0.3s ease;
+  }
+  .thanks-overlay.open { display: flex; }
+  .thanks-card {
+    position: relative;
+    max-width: 560px;
+    width: 100%;
+    text-align: center;
+    background: #0a0a0a;
+    border: 1px solid rgba(0, 255, 170, 0.25);
+    border-radius: 14px;
+    padding: 56px 40px 56px;
+    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 0 80px rgba(0, 255, 170, 0.15);
+  }
+  .thanks-corner {
+    position: absolute;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    color: rgba(255,255,255,0.32);
+    white-space: nowrap;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+  }
+  .thanks-corner-tl { top: 14px; left: 18px; }
+  .thanks-corner-bl { bottom: 14px; left: 18px; }
+  .thanks-corner-br { bottom: 14px; right: 18px; }
+  .thanks-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 2px solid var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    font-size: 38px;
+    color: var(--primary);
+    font-weight: 700;
+    background: rgba(0, 255, 170, 0.08);
+    box-shadow: 0 0 24px rgba(0, 255, 170, 0.3);
+  }
+  .thanks-title {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 26px;
+    color: #fff;
+    margin-bottom: 28px;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+  }
+  .thanks-message {
+    color: rgba(255,255,255,0.78) !important;
+    font-size: 14px !important;
+    line-height: 1.65 !important;
+    margin-bottom: 28px !important;
+    text-align: center !important;
+  }
+  .thanks-message strong { color: #fff !important; font-weight: 600; }
+  .thanks-button {
+    background: var(--primary);
+    color: #000;
+    border: none;
+    padding: 14px 36px;
+    border-radius: 8px;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+  .thanks-button:hover {
+    background: var(--primary-light);
+    box-shadow: 0 0 24px rgba(0, 255, 170, 0.5);
+  }
+
   @media (max-width: 480px) {
     .container {
       align-items: flex-start;
@@ -424,6 +603,9 @@
     .subtitle { margin-bottom: 32px; }
     .modal { padding: 28px 20px; }
     .checkbox-row { gap: 14px; }
+    .identity-card, .thanks-card { padding: 36px 24px; }
+    .identity-buttons { flex-direction: column; }
+    .btn-yes, .btn-no { width: 100%; }
   }
 </style>
 </head>
@@ -703,32 +885,238 @@
   </div>
 </div>
 
+<!-- Identity Confirmation (1º popup, ao abrir página) -->
+<div class="identity-overlay" id="identity-overlay">
+  <div class="identity-card">
+    <h2 id="identity-question">Olá! Para prosseguir, por favor, confirme que você é a contratante.</h2>
+    <div class="identity-buttons">
+      <button class="btn-yes" id="btn-confirm-yes">SIM, SOU EU</button>
+      <button class="btn-no" id="btn-confirm-no">NÃO, NÃO SOU</button>
+    </div>
+  </div>
+</div>
+
+<!-- Thank You / Confirmation (2º popup, após aceite) -->
+<div class="thanks-overlay" id="thanks-overlay">
+  <div class="thanks-card">
+    <span class="thanks-corner thanks-corner-tl" id="thanks-name">—</span>
+    <span class="thanks-corner thanks-corner-bl" id="thanks-code">—</span>
+    <span class="thanks-corner thanks-corner-br" id="thanks-date">—</span>
+
+    <div class="thanks-icon">✓</div>
+    <h2 class="thanks-title">Obrigado pela confiança!</h2>
+    <p class="thanks-message">
+      Perfeito! Agora basta enviar um print dessa tela no seu <strong>grupo individual da Legacy</strong> que daremos início agora mesmo em sua entrega e marcaremos sua call de onboarding!
+    </p>
+    <button class="thanks-button" id="thanks-close">Concluído</button>
+  </div>
+</div>
+
 <script>
-// ===== Modal de Termos =====
-const overlay = document.getElementById('modal-overlay');
-document.getElementById('open-terms').addEventListener('click', (e) => {
-  e.preventDefault();
-  overlay.classList.add('open');
-});
-document.getElementById('modal-close').addEventListener('click', () => {
-  overlay.classList.remove('open');
-});
-overlay.addEventListener('click', (e) => {
-  if (e.target === overlay) overlay.classList.remove('open');
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') overlay.classList.remove('open');
+// ============================================================
+// CONFIG — preencher antes do deploy
+// ============================================================
+const CONFIG = {
+  SUPABASE_URL:      'https://YOUR_PROJECT_ID.supabase.co',
+  SUPABASE_ANON_KEY: 'YOUR_PUBLIC_ANON_KEY',
+  CONTRACT_VERSION:  '1.0.0',                    // bump a cada alteração no texto do contrato
+  TABLE_NAME:        'contract_acceptances',
+  IP_API:            'https://api.ipify.org?format=json',
+};
+
+// ============================================================
+// URL PARAMS (vindos do CRM)
+// Formato esperado:
+//   ?id=<crm_id>&nome=<nome>&cpf=<doc>&email=<email>
+//   &telefone=<tel>&tipo=<PF|PJ>&modulos=<csv>&valor=<num>
+// ============================================================
+const params = new URLSearchParams(window.location.search);
+const PARAM = {
+  id:       params.get('id') || null,
+  nome:     params.get('nome') || params.get('name') || null,
+  cpf:      params.get('cpf') || params.get('cnpj') || params.get('documento') || null,
+  email:    params.get('email') || null,
+  telefone: params.get('telefone') || params.get('phone') || null,
+  tipo:     params.get('tipo') || params.get('type') || null,
+  modulos:  (params.get('modulos') || params.get('modules') || '').split(',').map(s => s.trim()).filter(Boolean),
+  valor:    parseFloat(params.get('valor') || params.get('value') || '') || null,
+};
+
+// ============================================================
+// IDENTITY CONFIRMATION
+// ============================================================
+const identityOverlay  = document.getElementById('identity-overlay');
+const identityQuestion = document.getElementById('identity-question');
+
+if (PARAM.nome) {
+  identityQuestion.textContent = `Olá! Para prosseguir, por favor, confirme que você é ${PARAM.nome}.`;
+}
+
+document.getElementById('btn-confirm-yes').addEventListener('click', () => {
+  identityOverlay.classList.add('hidden');
 });
 
-// ===== Checkbox aceite =====
-const checkbox = document.getElementById('accept-checkbox');
-const confirmation = document.getElementById('confirmation');
-checkbox.addEventListener('change', () => {
-  if (checkbox.checked) {
-    confirmation.classList.add('show');
-  } else {
-    confirmation.classList.remove('show');
+document.getElementById('btn-confirm-no').addEventListener('click', () => {
+  document.body.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;color:#fff;font-family:ui-monospace,SFMono-Regular,monospace;text-align:center;padding:24px;background:#000;">
+      <div style="max-width:440px;">
+        <h1 style="font-size:24px;margin-bottom:18px;letter-spacing:-0.01em;">Acesso encerrado</h1>
+        <p style="color:rgba(255,255,255,0.7);line-height:1.65;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">Esta página é destinada exclusivamente ao aceite individual do contratante. Caso tenha recebido o link por engano, por favor entre em contato com a Legacy para que possamos enviar para o destinatário correto.</p>
+      </div>
+    </div>`;
+});
+
+// ============================================================
+// MODAL DO CONTRATO (abrir/fechar)
+// ============================================================
+const termsOverlay = document.getElementById('modal-overlay');
+document.getElementById('open-terms').addEventListener('click', (e) => {
+  e.preventDefault();
+  termsOverlay.classList.add('open');
+});
+document.getElementById('modal-close').addEventListener('click', () => {
+  termsOverlay.classList.remove('open');
+});
+termsOverlay.addEventListener('click', (e) => {
+  if (e.target === termsOverlay) termsOverlay.classList.remove('open');
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') termsOverlay.classList.remove('open');
+});
+
+// ============================================================
+// HELPERS — coleta de IP, geolocalização e hash do documento
+// ============================================================
+async function fetchIP() {
+  try {
+    const r = await fetch(CONFIG.IP_API, { cache: 'no-store' });
+    const j = await r.json();
+    return j.ip || null;
+  } catch { return null; }
+}
+
+function fetchGeo() {
+  return new Promise((resolve) => {
+    if (!('geolocation' in navigator)) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({
+        latitude:  pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        accuracy:  pos.coords.accuracy,
+      }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
+}
+
+async function sha256(text) {
+  const buf = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+// Hash do contrato calculado uma vez no carregamento
+let contractHash = null;
+(async () => {
+  const text = document.querySelector('#modal-overlay .modal').innerText;
+  contractHash = await sha256(text);
+})();
+
+// ============================================================
+// SUPABASE CLIENT
+// ============================================================
+let supabaseClient = null;
+const isSupabaseConfigured =
+  CONFIG.SUPABASE_URL &&
+  !CONFIG.SUPABASE_URL.includes('YOUR_PROJECT') &&
+  CONFIG.SUPABASE_ANON_KEY &&
+  !CONFIG.SUPABASE_ANON_KEY.includes('YOUR_');
+
+if (window.supabase && isSupabaseConfigured) {
+  supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+}
+
+async function saveAcceptance(payload) {
+  if (!supabaseClient) {
+    console.warn('[Aceite] Supabase ainda não configurado. Payload que seria enviado:', payload);
+    return { ok: false, reason: 'supabase-not-configured', payload };
   }
+  const { data, error } = await supabaseClient
+    .from(CONFIG.TABLE_NAME)
+    .insert(payload)
+    .select()
+    .single();
+  if (error) {
+    console.error('[Aceite] Erro ao salvar no Supabase:', error);
+    return { ok: false, reason: 'supabase-insert-error', error };
+  }
+  return { ok: true, data };
+}
+
+// ============================================================
+// CHECKBOX ACEITE — fluxo completo
+// ============================================================
+const checkbox     = document.getElementById('accept-checkbox');
+const confirmation = document.getElementById('confirmation');
+const thanksOverlay = document.getElementById('thanks-overlay');
+let isProcessing = false;
+
+checkbox.addEventListener('change', async () => {
+  if (!checkbox.checked) {
+    confirmation.classList.remove('show');
+    return;
+  }
+  if (isProcessing) return;
+  isProcessing = true;
+  confirmation.classList.add('show');
+
+  // Coleta paralela
+  const [ip, geo] = await Promise.all([fetchIP(), fetchGeo()]);
+  const acceptedAt = new Date();
+
+  const payload = {
+    crm_contract_id:     PARAM.id,
+    contractor_name:     PARAM.nome,
+    contractor_document: PARAM.cpf,
+    contractor_email:    PARAM.email,
+    contractor_phone:    PARAM.telefone,
+    contractor_type:     PARAM.tipo,
+    contracted_modules:  PARAM.modulos.length ? PARAM.modulos : null,
+    contracted_value:    PARAM.valor,
+    accepted_at:         acceptedAt.toISOString(),
+    ip_address:          ip,
+    user_agent:          navigator.userAgent,
+    geo_latitude:        geo ? geo.latitude  : null,
+    geo_longitude:       geo ? geo.longitude : null,
+    geo_accuracy:        geo ? geo.accuracy  : null,
+    contract_version:    CONFIG.CONTRACT_VERSION,
+    document_hash:       contractHash,
+    referrer:            document.referrer || null,
+    url_params:          Object.fromEntries(params),
+  };
+
+  await saveAcceptance(payload);
+
+  // Preenche tela de obrigado (mesmo se Supabase falhar — print serve de prova manual)
+  document.getElementById('thanks-name').textContent = PARAM.nome || '—';
+  document.getElementById('thanks-date').textContent = acceptedAt.toLocaleString('pt-BR', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+  });
+  document.getElementById('thanks-code').textContent = (contractHash || '').slice(0, 12).toUpperCase();
+
+  setTimeout(() => thanksOverlay.classList.add('open'), 600);
+});
+
+document.getElementById('thanks-close').addEventListener('click', () => {
+  // Redireciona para o WhatsApp (abre o app no mobile e o WhatsApp Web no desktop).
+  // Para abrir um número específico (ex: concierge da Legacy), basta passar via URL:
+  //   ?wa=5511999999999  → vira https://wa.me/5511999999999
+  const waNumber = params.get('wa') || '';
+  window.location.href = `https://wa.me/${waNumber}`;
 });
 
 // ===== GLSL Hills (Three.js) =====
