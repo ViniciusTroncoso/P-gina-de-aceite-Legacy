@@ -999,21 +999,6 @@ async function fetchIP() {
   } catch { return null; }
 }
 
-function fetchGeo() {
-  return new Promise((resolve) => {
-    if (!('geolocation' in navigator)) return resolve(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({
-        latitude:  pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        accuracy:  pos.coords.accuracy,
-      }),
-      () => resolve(null),
-      { timeout: 5000, maximumAge: 60000 }
-    );
-  });
-}
-
 async function sha256(text) {
   const buf = new TextEncoder().encode(text);
   const hash = await crypto.subtle.digest('SHA-256', buf);
@@ -1077,10 +1062,19 @@ checkbox.addEventListener('change', async () => {
   isProcessing = true;
   confirmation.classList.add('show');
 
-  // Coleta paralela
-  const [ip, geo] = await Promise.all([fetchIP(), fetchGeo()]);
   const acceptedAt = new Date();
 
+  // Preenche e mostra a tela de obrigado IMEDIATAMENTE
+  document.getElementById('thanks-name').textContent = PARAM.nome || '—';
+  document.getElementById('thanks-date').textContent = acceptedAt.toLocaleString('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+  document.getElementById('thanks-code').textContent = (contractHash || '').slice(0, 12).toUpperCase();
+  setTimeout(() => thanksOverlay.classList.add('open'), 250);
+
+  // Em paralelo (sem bloquear o popup): busca IP e salva no Supabase
+  const ip = await fetchIP();
   const payload = {
     crm_contract_id:     PARAM.id,
     contractor_name:     PARAM.nome,
@@ -1093,9 +1087,9 @@ checkbox.addEventListener('change', async () => {
     accepted_at:         acceptedAt.toISOString(),
     ip_address:          ip,
     user_agent:          navigator.userAgent,
-    geo_latitude:        geo ? geo.latitude  : null,
-    geo_longitude:       geo ? geo.longitude : null,
-    geo_accuracy:        geo ? geo.accuracy  : null,
+    geo_latitude:        null,
+    geo_longitude:       null,
+    geo_accuracy:        null,
     contract_version:    CONFIG.CONTRACT_VERSION,
     document_hash:       contractHash,
     referrer:            document.referrer || null,
@@ -1103,16 +1097,6 @@ checkbox.addEventListener('change', async () => {
   };
 
   await saveAcceptance(payload);
-
-  // Preenche tela de obrigado (mesmo se Supabase falhar — print serve de prova manual)
-  document.getElementById('thanks-name').textContent = PARAM.nome || '—';
-  document.getElementById('thanks-date').textContent = acceptedAt.toLocaleString('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  });
-  document.getElementById('thanks-code').textContent = (contractHash || '').slice(0, 12).toUpperCase();
-
-  setTimeout(() => thanksOverlay.classList.add('open'), 600);
 });
 
 document.getElementById('thanks-close').addEventListener('click', () => {
