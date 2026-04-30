@@ -1103,7 +1103,7 @@ checkbox.addEventListener('change', async () => {
   // Preenche tela de obrigado (mesmo se Supabase falhar — print serve de prova manual)
   document.getElementById('thanks-name').textContent = PARAM.nome || '—';
   document.getElementById('thanks-date').textContent = acceptedAt.toLocaleString('pt-BR', {
-    dateStyle: 'long',
+    dateStyle: 'short',
     timeStyle: 'short',
   });
   document.getElementById('thanks-code').textContent = (contractHash || '').slice(0, 12).toUpperCase();
