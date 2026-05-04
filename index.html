@@ -660,6 +660,8 @@
     <div class="confirmation" id="confirmation">
       ✓ Aceite registrado. Obrigado pela confiança!
     </div>
+
+    <p class="subtitle" id="consent-legal-text" style="margin-top:18px;font-size:0.85em;opacity:0.75;display:none;"></p>
   </div>
 </div>
 
@@ -923,16 +925,18 @@
 const CONFIG = {
   SUPABASE_URL:      'https://eyndzpujkgrhuonaqjzv.supabase.co',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5bmR6cHVqa2dyaHVvbmFxanp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1OTI4NjQsImV4cCI6MjA5MzE2ODg2NH0.4AEgw8qW1jAjgjUnUBCVfpXWY4IoVoeG3OBL4lF8y-A',
-  CONTRACT_VERSION:  '1.0.0',                    // bump a cada alteração no texto do contrato
+  CONTRACT_VERSION:  '1.0.0',                    // bump a cada alteração no texto do contrato (legacy logging)
   TABLE_NAME:        'contract_acceptances',
   IP_API:            'https://api.ipify.org?format=json',
 };
 
 // ============================================================
-// URL PARAMS (vindos do CRM)
-// Formato esperado:
-//   ?id=<crm_id>&nome=<nome>&cpf=<doc>&email=<email>
-//   &telefone=<tel>&tipo=<PF|PJ>&modulos=<csv>&valor=<num>
+// NOVO BACKEND — Edge Function pública
+// ============================================================
+const EDGE_BASE = 'https://mftbsksgymurkvvhrbpo.supabase.co';
+
+// ============================================================
+// URL PARAMS (legados do CRM antigo) — coexistem com ?token= novo
 // ============================================================
 const params = new URLSearchParams(window.location.search);
 const PARAM = {
@@ -945,19 +949,71 @@ const PARAM = {
   modulos:  (params.get('modulos') || params.get('modules') || '').split(',').map(s => s.trim()).filter(Boolean),
   valor:    parseFloat(params.get('valor') || params.get('value') || '') || null,
 };
+const TOKEN = params.get('token');
+
+// Estado central preenchido pela API
+const acceptanceState = {
+  pdfSha256: null,
+  pdfSignedUrl: null,
+  consentText: null,
+  contract: null,        // do GET
+  status: null,          // 'pending' | 'already_accepted' | 'revoked' | 'not_found' | 'invalid' | 'network_error'
+  acceptedAt: null,
+  identityConfirmed: false,
+  readyAt: null,         // para dwell time
+};
+
+// Geo capturado após "SIM, SOU EU"
+const geoState = { method: 'none', lat: null, lng: null, accuracy_m: null };
 
 // ============================================================
-// IDENTITY CONFIRMATION
+// IDENTITY CONFIRMATION (hidratação acontece após GET)
 // ============================================================
 const identityOverlay  = document.getElementById('identity-overlay');
 const identityQuestion = document.getElementById('identity-question');
+const consentLegal     = document.getElementById('consent-legal-text');
 
 if (PARAM.nome) {
   identityQuestion.textContent = `Olá! Para prosseguir, por favor, confirme que você é ${PARAM.nome}.`;
 }
 
+function blockPage(message) {
+  identityQuestion.textContent = message;
+  const buttons = identityOverlay.querySelector('.identity-buttons');
+  if (buttons) buttons.style.display = 'none';
+}
+
+function captureGeolocation() {
+  if (!('geolocation' in navigator)) {
+    geoState.method = 'ip';
+    console.log('[acceptance] geolocation API indisponível, fallback ip');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      geoState.method = 'browser';
+      geoState.lat = pos.coords.latitude;
+      geoState.lng = pos.coords.longitude;
+      geoState.accuracy_m = pos.coords.accuracy ?? null;
+      console.log('[acceptance] geolocation capturada (browser)');
+    },
+    (err) => {
+      geoState.method = 'ip';
+      console.log('[acceptance] geolocation negada/erro, fallback ip:', err && err.code);
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
 document.getElementById('btn-confirm-yes').addEventListener('click', () => {
+  if (acceptanceState.status !== 'pending') {
+    // Sem GET válido, não permitir interação
+    return;
+  }
   identityOverlay.classList.add('hidden');
+  acceptanceState.identityConfirmed = true;
+  acceptanceState.readyAt = Date.now();
+  captureGeolocation();
 });
 
 document.getElementById('btn-confirm-no').addEventListener('click', () => {
@@ -1015,7 +1071,7 @@ let contractHash = null;
 })();
 
 // ============================================================
-// SUPABASE CLIENT
+// SUPABASE CLIENT (LEGADO — mantido para compat, não usado no fluxo novo)
 // ============================================================
 let supabaseClient = null;
 const isSupabaseConfigured =
@@ -1028,30 +1084,153 @@ if (window.supabase && isSupabaseConfigured) {
   supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
 }
 
-async function saveAcceptance(payload) {
-  if (!supabaseClient) {
-    console.warn('[Aceite] Supabase ainda não configurado. Payload que seria enviado:', payload);
-    return { ok: false, reason: 'supabase-not-configured', payload };
+// ============================================================
+// NOVO: GET inicial — busca o estado do token na Edge Function
+// ============================================================
+async function fetchAcceptanceState() {
+  if (!TOKEN) {
+    console.warn('[acceptance] token ausente na URL');
+    acceptanceState.status = 'invalid';
+    blockPage('Link inválido. Verifique se você copiou a URL completa.');
+    return;
   }
-  const { data, error } = await supabaseClient
-    .from(CONFIG.TABLE_NAME)
-    .insert(payload)
-    .select()
-    .single();
-  if (error) {
-    console.error('[Aceite] Erro ao salvar no Supabase:', error);
-    return { ok: false, reason: 'supabase-insert-error', error };
+  let resp;
+  try {
+    resp = await fetch(`${EDGE_BASE}/functions/v1/contract-acceptance-public?token=${encodeURIComponent(TOKEN)}`, {
+      method: 'GET',
+      cache: 'no-store',
+    });
+  } catch (err) {
+    console.error('[acceptance] falha de rede no GET:', err);
+    acceptanceState.status = 'network_error';
+    blockPage('Falha de rede. Recarregue a página.');
+    return;
   }
-  return { ok: true, data };
+
+  let body = null;
+  try { body = await resp.json(); } catch { body = null; }
+
+  if (resp.status === 200 && body && body.status === 'pending') {
+    acceptanceState.status = 'pending';
+    acceptanceState.consentText = body.consent_text || null;
+    acceptanceState.pdfSha256 = body.pdf_sha256 || null;
+    acceptanceState.pdfSignedUrl = body.pdf_signed_url || null;
+    acceptanceState.contract = body.contract || null;
+    hydratePendingUI();
+    return;
+  }
+
+  if (resp.status === 410 && body && body.error === 'already_accepted') {
+    acceptanceState.status = 'already_accepted';
+    acceptanceState.acceptedAt = body.accepted_at ? new Date(body.accepted_at) : new Date();
+    showThanksDirectly();
+    return;
+  }
+
+  if (resp.status === 410 && body && body.error === 'revoked') {
+    acceptanceState.status = 'revoked';
+    blockPage('Esse link foi cancelado pelo administrador. Solicite um novo.');
+    return;
+  }
+
+  if (resp.status === 404) {
+    acceptanceState.status = 'not_found';
+    blockPage('Link inválido ou expirado. Verifique a URL.');
+    return;
+  }
+
+  if (resp.status === 400) {
+    acceptanceState.status = 'invalid';
+    blockPage('Link inválido ou expirado. Verifique a URL.');
+    return;
+  }
+
+  console.error('[acceptance] resposta inesperada do GET:', resp.status, body);
+  acceptanceState.status = 'network_error';
+  blockPage('Falha ao validar o link. Recarregue a página.');
+}
+
+function hydratePendingUI() {
+  const c = acceptanceState.contract || {};
+  // Override com valores da API (autoritativos), com fallback para URL params
+  const displayName = c.client_name || PARAM.nome || null;
+  if (displayName) {
+    PARAM.nome = displayName;
+    identityQuestion.textContent = `Olá! Para prosseguir, preciso saber: você é ${displayName}?`;
+  } else {
+    identityQuestion.textContent = `Olá! Para prosseguir, por favor, confirme que você é a contratante.`;
+  }
+  if (c.client_email && !PARAM.email) PARAM.email = c.client_email;
+  if (c.client_phone && !PARAM.telefone) PARAM.telefone = c.client_phone;
+
+  // Hash autoritativo: o backend já fixou
+  if (acceptanceState.pdfSha256) {
+    contractHash = acceptanceState.pdfSha256;
+  }
+
+  // Texto legal vinculante exato vindo da API
+  if (acceptanceState.consentText && consentLegal) {
+    consentLegal.textContent = acceptanceState.consentText;
+    consentLegal.style.display = '';
+  }
+
+  console.log('[acceptance] estado pending hidratado para token', TOKEN);
+}
+
+function showThanksDirectly() {
+  // Caso "já aceito": pular fluxo e mostrar popup direto
+  identityOverlay.classList.add('hidden');
+  const acceptedAt = acceptanceState.acceptedAt || new Date();
+  const title = document.querySelector('#thanks-overlay .thanks-title');
+  if (title) title.textContent = 'Cadastro já concluído';
+  document.getElementById('thanks-name').textContent = PARAM.nome || '';
+  document.getElementById('thanks-date').textContent = acceptedAt.toLocaleString('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
+  document.getElementById('thanks-code').textContent = (acceptanceState.pdfSha256 || contractHash || '').slice(0, 12).toUpperCase();
+  // Bloqueia checkbox
+  const cb = document.getElementById('accept-checkbox');
+  if (cb) cb.disabled = true;
+  setTimeout(() => document.getElementById('thanks-overlay').classList.add('open'), 100);
+}
+
+// Dispara o GET imediatamente
+fetchAcceptanceState();
+
+// ============================================================
+// POST — envia aceite para a Edge Function
+// ============================================================
+async function postAcceptance(payload) {
+  try {
+    const resp = await fetch(`${EDGE_BASE}/functions/v1/contract-acceptance-public`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    let body = null;
+    try { body = await resp.json(); } catch { body = null; }
+    return { ok: resp.ok, status: resp.status, body };
+  } catch (err) {
+    console.error('[acceptance] erro de rede no POST:', err);
+    return { ok: false, status: 0, body: null, networkError: true };
+  }
 }
 
 // ============================================================
-// CHECKBOX ACEITE — fluxo completo
+// CHECKBOX ACEITE — fluxo completo (novo)
 // ============================================================
 const checkbox     = document.getElementById('accept-checkbox');
 const confirmation = document.getElementById('confirmation');
 const thanksOverlay = document.getElementById('thanks-overlay');
 let isProcessing = false;
+
+function showInlineError(msg) {
+  // Reaproveita o elemento .confirmation para mostrar mensagem de erro inline
+  confirmation.textContent = msg;
+  confirmation.classList.add('show');
+  confirmation.style.color = '#ff6b6b';
+}
 
 checkbox.addEventListener('change', async () => {
   if (!checkbox.checked) {
@@ -1059,44 +1238,81 @@ checkbox.addEventListener('change', async () => {
     return;
   }
   if (isProcessing) return;
+  if (acceptanceState.status !== 'pending' || !acceptanceState.identityConfirmed) {
+    checkbox.checked = false;
+    return;
+  }
   isProcessing = true;
   confirmation.classList.add('show');
 
-  const acceptedAt = new Date();
+  const dwellSeconds = Math.max(
+    1,
+    Math.round(((acceptanceState.readyAt ? (Date.now() - acceptanceState.readyAt) : 0) / 1000))
+  );
 
-  // Preenche e mostra a tela de obrigado IMEDIATAMENTE
-  document.getElementById('thanks-name').textContent = PARAM.nome || '—';
-  document.getElementById('thanks-date').textContent = acceptedAt.toLocaleString('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  });
-  document.getElementById('thanks-code').textContent = (contractHash || '').slice(0, 12).toUpperCase();
-  setTimeout(() => thanksOverlay.classList.add('open'), 250);
-
-  // Em paralelo (sem bloquear o popup): busca IP e salva no Supabase
-  const ip = await fetchIP();
   const payload = {
-    crm_contract_id:     PARAM.id,
-    contractor_name:     PARAM.nome,
-    contractor_document: PARAM.cpf,
-    contractor_email:    PARAM.email,
-    contractor_phone:    PARAM.telefone,
-    contractor_type:     PARAM.tipo,
-    contracted_modules:  PARAM.modulos.length ? PARAM.modulos : null,
-    contracted_value:    PARAM.valor,
-    accepted_at:         acceptedAt.toISOString(),
-    ip_address:          ip,
-    user_agent:          navigator.userAgent,
-    geo_latitude:        null,
-    geo_longitude:       null,
-    geo_accuracy:        null,
-    contract_version:    CONFIG.CONTRACT_VERSION,
-    document_hash:       contractHash,
-    referrer:            document.referrer || null,
-    url_params:          Object.fromEntries(params),
+    token: TOKEN,
+    geo: {
+      method: geoState.method,
+      lat: geoState.lat,
+      lng: geoState.lng,
+      accuracy_m: geoState.accuracy_m,
+      city: null, region: null, country: null,
+    },
+    dwell_seconds: dwellSeconds,
   };
 
-  await saveAcceptance(payload);
+  console.log('[acceptance] enviando POST', payload);
+  const result = await postAcceptance(payload);
+
+  if (result.ok && result.body && result.body.success) {
+    const acceptedAt = result.body.accepted_at ? new Date(result.body.accepted_at) : new Date();
+    document.getElementById('thanks-name').textContent = PARAM.nome || '—';
+    document.getElementById('thanks-date').textContent = acceptedAt.toLocaleString('pt-BR', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
+    document.getElementById('thanks-code').textContent = (acceptanceState.pdfSha256 || contractHash || '').slice(0, 12).toUpperCase();
+    setTimeout(() => thanksOverlay.classList.add('open'), 250);
+    console.log('[acceptance] aceite registrado com sucesso');
+    return;
+  }
+
+  // Erros
+  const err = (result.body && result.body.error) || (result.networkError ? 'network' : 'unknown');
+  console.error('[acceptance] POST falhou:', result.status, err);
+
+  if (err === 'already_accepted') {
+    const acceptedAt = (result.body && result.body.accepted_at) ? new Date(result.body.accepted_at) : new Date();
+    acceptanceState.acceptedAt = acceptedAt;
+    showThanksDirectly();
+    return;
+  }
+  if (err === 'pdf_changed') {
+    showInlineError('O contrato foi atualizado. Solicite um novo link ao administrador.');
+    checkbox.disabled = true;
+    return;
+  }
+  if (err === 'revoked') {
+    blockPage('Esse link foi cancelado pelo administrador. Solicite um novo.');
+    return;
+  }
+  if (err === 'not_found') {
+    blockPage('Link inválido ou expirado. Verifique a URL.');
+    return;
+  }
+  if (err === 'network') {
+    showInlineError('Falha de rede. Marque novamente para tentar de novo.');
+    checkbox.checked = false;
+    confirmation.classList.remove('show');
+    confirmation.style.color = '';
+    confirmation.textContent = '✓ Aceite registrado. Obrigado pela confiança!';
+    isProcessing = false;
+    return;
+  }
+  showInlineError('Não foi possível registrar o aceite. Tente novamente.');
+  checkbox.checked = false;
+  isProcessing = false;
 });
 
 document.getElementById('thanks-close').addEventListener('click', () => {
